@@ -1,0 +1,26 @@
+---
+title: "compas_analysis"
+author: "Rami Boughanmi & Maël RIBES"
+date: "2023-03-24"
+output: html_document
+---
+
+# Compas Dataset Analysis
+
+------------------------------------------------------------------------
+
+## Library imports
+
+```{r}
+library(RSQLite)
+```
+
+## Dataset cleaning
+
+```{r}
+con <- dbConnect(RSQLite::SQLite(), "compas.db")
+
+all_data <- data.frame(dbGetQuery(con, "SELECT * FROM compas"))
+RK_violence <- data.frame(dbGetQuery(con, "SELECT * FROM compas where type_of_assessment = 'Risk of Violence' "))
+RK_recidivism <- data.frame(dbGetQuery(con, "SELECT * FROM compas where type_of_assessment = 'Risk of Recidivism' "))
+```
