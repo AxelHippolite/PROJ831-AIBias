@@ -2,7 +2,8 @@
 title: "compas_analysis"
 author: "Rami Boughanmi & Maël RIBES"
 date: "2023-03-24"
-output: html_document
+output: html_document:
+  number_sections: TRUE
 ---
 
 # Compas Dataset Analysis
@@ -12,15 +13,161 @@ output: html_document
 ## Library imports
 
 ```{r}
-library(RSQLite)
+
+library(CGPfunctions)
+library(treemap)
+library(ggplot2)
 ```
 
 ## Dataset cleaning
 
-```{r}
-con <- dbConnect(RSQLite::SQLite(), "compas.db")
+We saw that each row in the original dataset was duplicated for each type of assessment. We have therefore separated the dataset into 3 dataframes corresponding to each of the categories.
 
-all_data <- data.frame(dbGetQuery(con, "SELECT * FROM compas"))
-RK_violence <- data.frame(dbGetQuery(con, "SELECT * FROM compas where type_of_assessment = 'Risk of Violence' "))
-RK_recidivism <- data.frame(dbGetQuery(con, "SELECT * FROM compas where type_of_assessment = 'Risk of Recidivism' "))
+```{r}
+# Import CSV
+compas_all_data <- read.csv("compas-scores-raw.csv")
+
+# Cleaning ethnic codes 
+compas_all_data$Ethnic_Code_Text <- sub("African-American", "Afro-Am", compas_all_data$Ethnic_Code_Text)
+compas_all_data$Ethnic_Code_Text <- sub("African-Am", "Afro-Am", compas_all_data$Ethnic_Code_Text)
+compas_all_data$Ethnic_Code_Text <- sub("Native American", "Native-Am", compas_all_data$Ethnic_Code_Text)
+
+# Calculation of defendants' age and addition of the "age" column to compas_data
+compas_all_data$DateOfBirth <- as.POSIXct(paste0(substr(compas_all_data$DateOfBirth,1,6),"19",substr(compas_all_data$DateOfBirth,7,8)), format = "%m/%d/%Y")
+compas_all_data$Age <- as.integer(difftime(Sys.time(), compas_all_data$DateOfBirth, units = "days")/365.25)
+
+# Separation of datasets 
+RK_recidivism <- subset(compas_all_data, DisplayText == "Risk of Recidivism")
+RK_violence <- subset(compas_all_data, DisplayText == "Risk of Violence")
+RK_failure_appear <- subset(compas_all_data, DisplayText == "Risk of Failure to Appear")
+
 ```
+
+## Risk of violence analysis
+
+As a first step, we chose to study the risk of violence dataset. Let's look at the number of defendants and the distribution of age, sexes, ethnicity etc.
+
+### Ethnicity analysis
+
+```{r}
+# Calculation of the number of defendants
+nb_defendants <- nrow(RK_violence)
+
+# Extraction of all ethnic groups and their number of individuals
+all_ethnicity <- unique(RK_violence$Ethnic_Code_Text)
+all_ethnicity_count <- data.frame(ethnicity = character(), count = numeric())
+RK_violence_ethnicity <-  subset(RK_violence, select = c(Ethnic_Code_Text, ScoreText)) 
+for (ethnicity in all_ethnicity){
+  count <- nrow(subset(RK_violence, Ethnic_Code_Text == ethnicity))
+  all_ethnicity_count <- rbind(all_ethnicity_count, data.frame(ethnicity = ethnicity, count = count))
+}
+
+# Console display of the distribution of different races
+print(paste("Total number of defendants :", nb_defendants))
+for (ethnicity in all_ethnicity){
+  print(paste("distribution of",ethnicity, ":", round((nrow(subset(RK_violence_ethnicity, Ethnic_Code_Text == ethnicity))/nb_defendants)*100,3),"%"))
+}
+
+print(all_ethnicity_count)
+
+treemap(all_ethnicity_count, 
+        index = "ethnicity", 
+        vSize = "count", 
+        type = "index",
+        title = "Ethnicity count",
+        title.legend = "Ethnicity",
+        )
+
+PlotXTabs2(
+  data = RK_violence_ethnicity,
+  y = ScoreText,
+  x = Ethnic_Code_Text,
+  plottype = "side",
+  xlab = "Ethnicity",
+  ylab = NULL,
+  label.text.size = 2,
+  results.subtitle = FALSE,
+  sample.size.label = FALSE,
+  data.label = "counts",
+  legend.title = "Risk of violence",
+  legend.position = "right",
+  title = "Risk of violence by ethnicity",
+  palette = "Set1"
+)
+
+PlotXTabs2(
+  data = RK_violence_ethnicity,
+  y = ScoreText,
+  x = Ethnic_Code_Text,
+  xlab = "Ethnicity",
+  ylab = NULL,
+  results.subtitle = FALSE,
+  legend.title = "Risk of violence",
+  legend.position = "right",
+  title = "Risk of violence by ethnicity",
+  palette = "Set1"
+)
+
+```
+
+The majority of defendants belong to the ethnic groups of African Americans (44.406%) and Caucasians (35.802%).
+The other ethnic groups represent a much smaller proportion.
+The percentage difference between races may indicate possible discrimination or bias in the system and may also affect our future analyses.
+
+### Ages analysis
+
+```{r}
+
+all_ages = unique(RK_violence$Age)
+
+# Console display of the distribution of different ages
+for (age in all_ages){
+  print(paste("Distribution of people who are ", age, "years old :", round((nrow(subset(RK_violence, Age == age))/nb_defendants)*100, 3),"%"))
+}
+
+# Create a vector with the number of defendants per age
+def_by_age <- sapply(all_ages, function(age) nrow(subset(RK_violence, Age == age)))
+
+# Display a bar chart for the distribution of ages
+barplot(def_by_age, names.arg = all_ages, xlab = "Age", ylab = "Number of defendants", main = "Distribution of defendants' ages")
+
+# Create a data frame with the distribution of ages
+age_distribution <- data.frame(age = all_ages, percentage = sapply(all_ages, function(x) {nrow(subset(RK_violence, Age == x))/nb_defendants}))
+
+# Create a histogram of age distribution
+ggplot(age_distribution, aes(x=age, y=percentage)) + 
+  geom_bar(stat="identity") +
+  labs(title="Age distribution of the defendants", x="Age", y="Pourcentage") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+We observe that there is still a fairly uniform distribution among the different age groups,
+#however, we still have a concentration of defendants in the age group of 30-40 years.
+
+### Sexes analysis
+
+```{r}
+
+all_sexes = unique(RK_violence$Sex_Code_Text)
+
+# Console display of the distribution of different sexes
+for (sex in all_sexes){
+  print(paste("Distribution of",sex,":", round((nrow(subset(RK_violence, Sex_Code_Text == sex))/nb_defendants)*100, 3),"%"))
+}
+
+# Create a data frame with the sex distribution
+sex_distribution <- data.frame(sex = all_sexes, percentage = sapply(all_sexes, function(x) {nrow(subset(RK_violence, Sex_Code_Text == x))/nb_defendants}))
+
+# Pie chart of sex distribution
+ggplot(sex_distribution, aes(x = "", y = percentage, fill = sex)) + 
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0) +
+  labs(title = "Sex distribution in the dataset")+ 
+  theme_void() +
+  geom_text(aes(label = paste0(round(percentage*100), "%")), position = position_stack(vjust = 0.5)) +
+  scale_fill_brewer(palette="Set1")
+```
+
+We observe here that the majority sex of individuals in the compas dataset are men (78%).
