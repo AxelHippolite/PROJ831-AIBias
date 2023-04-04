@@ -49,6 +49,62 @@ As a first step, we chose to study the risk of violence dataset. Let's look at t
 
 ### Ethnicity analysis
 
+PlotXTabs2(
+
+data = RK_violence_ethnicity,
+
+y = ScoreText,
+
+x = Ethnic_Code_Text,
+
+plottype = "side",
+
+xlab = "Ethnicity",
+
+ylab = NULL,
+
+label.text.size = 2,
+
+results.subtitle = FALSE,
+
+sample.size.label = FALSE,
+
+data.label = "counts",
+
+legend.title = "Risk of violence",
+
+legend.position = "right",
+
+title = "Risk of violence by ethnicity",
+
+palette = "Set1"
+
+)
+
+PlotXTabs2(
+
+data = RK_violence_ethnicity,
+
+y = ScoreText,
+
+x = Ethnic_Code_Text,
+
+xlab = "Ethnicity",
+
+ylab = NULL,
+
+results.subtitle = FALSE,
+
+legend.title = "Risk of violence",
+
+legend.position = "right",
+
+title = "Risk of violence by ethnicity",
+
+palette = "Set1"
+
+)
+
 ```{r}
 # Calculation of the number of defendants
 nb_defendants <- nrow(RK_violence)
@@ -57,6 +113,7 @@ nb_defendants <- nrow(RK_violence)
 all_ethnicity <- unique(RK_violence$Ethnic_Code_Text)
 all_ethnicity_count <- data.frame(ethnicity = character(), count = numeric())
 RK_violence_ethnicity <-  subset(RK_violence, select = c(Ethnic_Code_Text, ScoreText)) 
+
 for (ethnicity in all_ethnicity){
   count <- nrow(subset(RK_violence, Ethnic_Code_Text == ethnicity))
   all_ethnicity_count <- rbind(all_ethnicity_count, data.frame(ethnicity = ethnicity, count = count))
@@ -110,9 +167,7 @@ PlotXTabs2(
 
 ```
 
-The majority of defendants belong to the ethnic groups of African Americans (44.406%) and Caucasians (35.802%).
-The other ethnic groups represent a much smaller proportion.
-The percentage difference between races may indicate possible discrimination or bias in the system and may also affect our future analyses.
+We find in the dataset a total number of 20281 defendants. The majority of defendants belong to the ethnic groups of African Americans (44.406%) and Caucasians (35.802%). The other ethnic groups represent a much smaller proportion. If we take a look at the distribution of each individual's presumed violence risk score by ethnicity, we can see some very interesting information. The violence risk score is a number between 0 and 10 but on the graphs presented above, we use 3 categories: low (0-4), medium (5-7) and high (8-10). The first graph shows us visually that the African American and Caucasian ethnic groups are the most represented. However, this visualization is not relevant to draw conclusions about the score so we made the second graph. On this one we no longer plot the number of individuals in ordinal but we plot the percentage of individuals in each score category for each ethnicity. We see that the "Low" category is the most represented regardless of ethnic group. However, the African American and Native American categories have a higher proportion of Medium and High risk individuals than the other categories. We will try to explain these results later .
 
 ### Ages analysis
 
@@ -134,6 +189,12 @@ barplot(def_by_age, names.arg = all_ages, xlab = "Age", ylab = "Number of defend
 # Create a data frame with the distribution of ages
 age_distribution <- data.frame(age = all_ages, percentage = sapply(all_ages, function(x) {nrow(subset(RK_violence, Age == x))/nb_defendants}))
 
+# Creation of a dataframe with age groups
+age_groups <- c(0, 25, 30, 40, 50, 60, Inf)
+
+RK_violence_age$AgeGroup <- cut(RK_violence_age$Age, age_groups, labels = c("<25", "25-30", "30-40", "40-50", "50-60", ">60"))
+
+
 # Create a histogram of age distribution
 ggplot(age_distribution, aes(x=age, y=percentage)) + 
   geom_bar(stat="identity") +
@@ -141,10 +202,39 @@ ggplot(age_distribution, aes(x=age, y=percentage)) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 
+PlotXTabs2(
+  data = RK_violence_age,
+  y = ScoreText,
+  x = AgeGroup,
+  plottype = "side",
+  xlab = "Ethnicity",
+  ylab = NULL,
+  label.text.size = 2,
+  results.subtitle = FALSE,
+  sample.size.label = FALSE,
+  data.label = "counts",
+  legend.title = "Risk of violence",
+  legend.position = "right",
+  title = "Risk of violence by AgeGroup",
+  palette = "Set1"
+)
+
+PlotXTabs2(
+  data = RK_violence_age,
+  y = ScoreText,
+  x = AgeGroup,
+  xlab = "Ethnicity",
+  ylab = NULL,
+  results.subtitle = FALSE,
+  legend.title = "Risk of violence",
+  legend.position = "right",
+  title = "Risk of violence by AgeGroup",
+  palette = "Set1"
+)
+
 ```
 
-We observe that there is still a fairly uniform distribution among the different age groups,
-#however, we still have a concentration of defendants in the age group of 30-40 years.
+We observe that there is still a fairly uniform distribution among the different age groups, however, we still have a concentration of defendants in the age group of 30-40 years. One thing is particularly obvious when looking at the violence risk score: the younger the chosen age category, the greater the proportion of high-risk individuals in this category. In particular, more than 80% of individuals under the age of 30 are individuals presumed to be at risk.
 
 ### Sexes analysis
 
@@ -168,6 +258,36 @@ ggplot(sex_distribution, aes(x = "", y = percentage, fill = sex)) +
   theme_void() +
   geom_text(aes(label = paste0(round(percentage*100), "%")), position = position_stack(vjust = 0.5)) +
   scale_fill_brewer(palette="Set1")
+
+PlotXTabs2(
+  data = RK_violence,
+  y = ScoreText,
+  x = Sex_Code_Text,
+  plottype = "side",
+  xlab = "Sex",
+  ylab = NULL,
+  label.text.size = 2,
+  results.subtitle = FALSE,
+  sample.size.label = FALSE,
+  data.label = "counts",
+  legend.title = "Risk of violence",
+  legend.position = "right",
+  title = "Risk of violence by sex",
+  palette = "Set1"
+)
+
+PlotXTabs2(
+  data = RK_violence,
+  y = ScoreText,
+  x = Sex_Code_Text,
+  xlab = "Sex",
+  ylab = NULL,
+  results.subtitle = FALSE,
+  legend.title = "Risk of violence",
+  legend.position = "right",
+  title = "Risk of violence by sex",
+  palette = "Set1"
+)
 ```
 
-We observe here that the majority sex of individuals in the compas dataset are men (78%).
+We observe here that the majority sex of individuals in the compas dataset are men (78%). Despite this, the proportion of dangerous individuals is globally identical regardless of gender. We can simply note that 6% more men are at medium risk and at high risk.
