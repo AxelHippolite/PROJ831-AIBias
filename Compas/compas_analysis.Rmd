@@ -49,62 +49,6 @@ As a first step, we chose to study the risk of violence dataset. Let's look at t
 
 ### Ethnicity analysis
 
-PlotXTabs2(
-
-data = RK_violence_ethnicity,
-
-y = ScoreText,
-
-x = Ethnic_Code_Text,
-
-plottype = "side",
-
-xlab = "Ethnicity",
-
-ylab = NULL,
-
-label.text.size = 2,
-
-results.subtitle = FALSE,
-
-sample.size.label = FALSE,
-
-data.label = "counts",
-
-legend.title = "Risk of violence",
-
-legend.position = "right",
-
-title = "Risk of violence by ethnicity",
-
-palette = "Set1"
-
-)
-
-PlotXTabs2(
-
-data = RK_violence_ethnicity,
-
-y = ScoreText,
-
-x = Ethnic_Code_Text,
-
-xlab = "Ethnicity",
-
-ylab = NULL,
-
-results.subtitle = FALSE,
-
-legend.title = "Risk of violence",
-
-legend.position = "right",
-
-title = "Risk of violence by ethnicity",
-
-palette = "Set1"
-
-)
-
 ```{r}
 # Calculation of the number of defendants
 nb_defendants <- nrow(RK_violence)
