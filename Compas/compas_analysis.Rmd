@@ -118,6 +118,7 @@ We find in the dataset a total number of 20281 defendants. The majority of defen
 ```{r}
 
 all_ages = unique(RK_violence$Age)
+RK_violence_age <-  subset(RK_violence, select = c(Age, ScoreText)) 
 
 # Console display of the distribution of different ages
 for (age in all_ages){
@@ -235,3 +236,8 @@ PlotXTabs2(
 ```
 
 We observe here that the majority sex of individuals in the compas dataset are men (78%). Despite this, the proportion of dangerous individuals is globally identical regardless of gender. We can simply note that 6% more men are at medium risk and at high risk.
+
+```{r}
+
+
+```
