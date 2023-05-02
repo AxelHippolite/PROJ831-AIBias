@@ -13,10 +13,15 @@ output: html_document:
 ## Library imports
 
 ```{r}
-
 library(CGPfunctions)
 library(treemap)
 library(ggplot2)
+library(FactoMineR)
+library(Factoshiny)
+library(formattable)
+library(nnet)
+library(caret)
+library(MASS)
 ```
 
 ## Dataset cleaning
@@ -35,6 +40,13 @@ compas_all_data$Ethnic_Code_Text <- sub("Native American", "Native-Am", compas_a
 # Calculation of defendants' age and addition of the "age" column to compas_data
 compas_all_data$DateOfBirth <- as.POSIXct(paste0(substr(compas_all_data$DateOfBirth,1,6),"19",substr(compas_all_data$DateOfBirth,7,8)), format = "%m/%d/%Y")
 compas_all_data$Age <- as.integer(difftime(Sys.time(), compas_all_data$DateOfBirth, units = "days")/365.25)
+
+
+# Addition of age groups
+age_groups <- c(0, 25, 30, 40, 50, 60, Inf)
+
+compas_all_data$AgeGroup <- cut(compas_all_data$Age, age_groups, labels = c("<25", "25-30", "30-40", "40-50", "50-60", ">60"))
+compas_all_data<- subset(compas_all_data, select = -c(LastName, FirstName, MiddleName, Person_ID, AssessmentID, Case_ID,DateOfBirth,Screening_Date,RawScore,Scale_ID,IsCompleted,IsDeleted,AssessmentReason))
 
 # Separation of datasets 
 RK_recidivism <- subset(compas_all_data, DisplayText == "Risk of Recidivism")
@@ -118,7 +130,7 @@ We find in the dataset a total number of 20281 defendants. The majority of defen
 ```{r}
 
 all_ages = unique(RK_violence$Age)
-RK_violence_age <-  subset(RK_violence, select = c(Age, ScoreText)) 
+RK_violence_age <-  subset(RK_violence, select = c(Age, ScoreText, AgeGroup)) 
 
 # Console display of the distribution of different ages
 for (age in all_ages){
@@ -133,12 +145,6 @@ barplot(def_by_age, names.arg = all_ages, xlab = "Age", ylab = "Number of defend
 
 # Create a data frame with the distribution of ages
 age_distribution <- data.frame(age = all_ages, percentage = sapply(all_ages, function(x) {nrow(subset(RK_violence, Age == x))/nb_defendants}))
-
-# Creation of a dataframe with age groups
-age_groups <- c(0, 25, 30, 40, 50, 60, Inf)
-
-RK_violence_age$AgeGroup <- cut(RK_violence_age$Age, age_groups, labels = c("<25", "25-30", "30-40", "40-50", "50-60", ">60"))
-
 
 # Create a histogram of age distribution
 ggplot(age_distribution, aes(x=age, y=percentage)) + 
@@ -237,7 +243,94 @@ PlotXTabs2(
 
 We observe here that the majority sex of individuals in the compas dataset are men (78%). Despite this, the proportion of dangerous individuals is globally identical regardless of gender. We can simply note that 6% more men are at medium risk and at high risk.
 
+## Risk of violence analysis
+
+We will now focus our interest on the recidivism risk dataset. We will try to determine which variables are most relevant for predicting the probability of recidivism. First, we perform a logistic regression on the dataset against the recidivism score. We decide to separate the individuals with a low chance of recidivism on one side and those with a medium and high on the other.
+
 ```{r}
 
+RK_recidivism<- subset(RK_recidivism, select = -c(DisplayText,ScoreText))
 
+resultat <- sapply(RK_recidivism, function(x) nlevels(factor(x)))
+
+
+set.seed(123) # Pour reproduire les résultats
+train_index <- sample(nrow(RK_recidivism), round(nrow(RK_recidivism)*0.8), replace = FALSE)
+train_data <- RK_recidivism[train_index, ]
+test_data <- RK_recidivism[-train_index, ]
+
+
+train_data$DecileScore <- ifelse(train_data$DecileScore < 5, 0, 1)
+test_data$DecileScore <- ifelse(test_data$DecileScore < 5, 0, 1)
+
+# Exécuter la régression logistique
+model <- glm(DecileScore ~ .  , data = train_data, family = binomial)
+
+# Appliquer la fonction step backward
+#step_model <- step(model, direction = "backward")#legal status and age removed
+
+summary(model)
+```
+
+```{r}
+# Faire des prédictions sur les données de test
+predictions <- predict(step_model, newdata = test_data, type = "response")
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+# Créer une matrice de confusion
+confusion_matrix <- table(predicted_classes, test_data$DecileScore)
+confusion_df <- as.data.frame.matrix(confusion_matrix)
+
+formattable(confusion_df, list(
+  `1` = color_tile("#ffffff", "#2a9fd6"),
+  `0` = color_tile("#ffffff", "#ff5722")
+))
+
+confusion_df
+```
+
+-   2234 observations ont été correctement classées comme négatives par le modèle (valeur prédite = 0, valeur réelle = 0).
+
+-   67 observations ont été classées comme positives par le modèle alors qu'elles étaient en réalité négatives (valeur prédite = 1, valeur réelle = 0), ce qui correspond à des faux positifs.
+
+-   296 observations ont été classées comme négatives par le modèle alors qu'elles étaient en réalité positives (valeur prédite = 0, valeur réelle = 1), ce qui correspond à des faux négatifs.
+
+-   1459 observations ont été correctement classées comme positives par le modèle (valeur prédite = 1, valeur réelle = 1).
+
+```{r}
+set.seed(123) # Pour reproduire les résultats
+train_index <- sample(nrow(RK_recidivism), round(nrow(RK_recidivism)*0.8), replace = FALSE)
+train_data <- RK_recidivism[train_index, ]
+test_data <- RK_recidivism[-train_index, ]
+
+
+# Convertir la variable DecileScore en facteur avec les niveaux spécifiés
+train_data$DecileScore <- factor(ifelse(train_data$DecileScore < 5, "low", ifelse(train_data$DecileScore <= 7, "medium", "high")), 
+                                 levels = c("low", "medium", "high"))
+test_data$DecileScore <- factor(ifelse(test_data$DecileScore < 5, "low", ifelse(test_data$DecileScore <= 7, "medium", "high")), 
+                                levels = c("low", "medium", "high"))
+
+# Exécuter la régression logistique multinomiale
+model_multinom <- multinom(DecileScore ~ ., data = train_data)
+
+
+summary(model_multinom)
+#step_model <- stepAIC(model, direction = "backward")
+#summary(step_model)
+
+
+# Prédire les classes pour les données de test
+predicted_classes <- predict(model_multinom, newdata = test_data, type = "class")
+
+# Créer une matrice de confusion
+confusion_matrix <- confusionMatrix(predicted_classes, test_data$DecileScore)
+confusion_df <- as.data.frame.matrix(confusion_matrix$table)
+
+confusion_table <- formattable(confusion_df, align = "c", list(
+  `low` = color_tile("#FFFFFF", "#2A9FD6"),
+  `medium` = color_tile("#FFFFFF", "#2A9FD6"),
+  `high` = color_tile("#FFFFFF", "#2A9FD6")
+))
+confusion_matrix
+confusion_table
 ```
