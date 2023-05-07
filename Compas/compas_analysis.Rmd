@@ -1,0 +1,401 @@
+---
+title: "compas_analysis"
+author: "Rami Boughanmi & Maël RIBES"
+date: "2023-03-24"
+output: html_document:
+  number_sections: TRUE
+---
+
+# Compas Dataset Analysis
+
+------------------------------------------------------------------------
+
+## Library imports
+
+```{r}
+library(CGPfunctions)
+library(treemap)
+library(ggplot2)
+library(FactoMineR)
+library(Factoshiny)
+library(formattable)
+library(nnet)
+library(caret)
+library(MASS)
+library(broom.helpers)
+library(GGally)
+```
+
+## Dataset cleaning
+
+We saw that each row in the original dataset was duplicated for each type of assessment. We have therefore separated the dataset into 3 dataframes corresponding to each of the categories.
+
+```{r}
+# Import CSV
+compas_all_data <- read.csv("compas-scores-raw.csv")
+
+# Cleaning ethnic codes 
+compas_all_data$Ethnic_Code_Text <- sub("African-American", "Afro-Am", compas_all_data$Ethnic_Code_Text)
+compas_all_data$Ethnic_Code_Text <- sub("African-Am", "Afro-Am", compas_all_data$Ethnic_Code_Text)
+compas_all_data$Ethnic_Code_Text <- sub("Native American", "Native-Am", compas_all_data$Ethnic_Code_Text)
+
+# Calculation of defendants' age and addition of the "age" column to compas_data
+compas_all_data$DateOfBirth <- as.POSIXct(paste0(substr(compas_all_data$DateOfBirth,1,6),"19",substr(compas_all_data$DateOfBirth,7,8)), format = "%m/%d/%Y")
+compas_all_data$Age <- as.integer(difftime(Sys.time(), compas_all_data$DateOfBirth, units = "days")/365.25)
+
+
+# Addition of age groups
+age_groups <- c(0, 25, 30, 40, 50, 60, Inf)
+
+compas_all_data$AgeGroup <- cut(compas_all_data$Age, age_groups, labels = c("<25", "25-30", "30-40", "40-50", "50-60", ">60"))
+compas_all_data<- subset(compas_all_data, select = -c(LastName, FirstName, MiddleName, Person_ID, AssessmentID, Case_ID,DateOfBirth,Screening_Date,RawScore,Scale_ID,IsCompleted,IsDeleted,AssessmentReason))
+
+# Separation of datasets 
+RK_recidivism <- subset(compas_all_data, DisplayText == "Risk of Recidivism")
+RK_recidivism <- subset(RK_recidivism, select = -c(DisplayText,ScoreText,ScaleSet, ScaleSet_ID,RecSupervisionLevel,RecSupervisionLevelText,AssessmentType,Agency_Text))
+RK_violence <- subset(compas_all_data, DisplayText == "Risk of Violence")
+RK_failure_appear <- subset(compas_all_data, DisplayText == "Risk of Failure to Appear")
+
+```
+
+## Risk of violence analysis
+
+As a first step, we chose to study the risk of violence dataset. Let's look at the number of defendants and the distribution of age, sexes, ethnicity etc.
+
+### Ethnicity analysis
+
+```{r}
+# Calculation of the number of defendants
+nb_defendants <- nrow(RK_violence)
+
+# Extraction of all ethnic groups and their number of individuals
+all_ethnicity <- unique(RK_violence$Ethnic_Code_Text)
+all_ethnicity_count <- data.frame(ethnicity = character(), count = numeric())
+RK_violence_ethnicity <-  subset(RK_violence, select = c(Ethnic_Code_Text, ScoreText)) 
+
+for (ethnicity in all_ethnicity){
+  count <- nrow(subset(RK_violence, Ethnic_Code_Text == ethnicity))
+  all_ethnicity_count <- rbind(all_ethnicity_count, data.frame(ethnicity = ethnicity, count = count))
+}
+
+# Console display of the distribution of different races
+print(paste("Total number of defendants :", nb_defendants))
+for (ethnicity in all_ethnicity){
+  print(paste("distribution of",ethnicity, ":", round((nrow(subset(RK_violence_ethnicity, Ethnic_Code_Text == ethnicity))/nb_defendants)*100,3),"%"))
+}
+
+print(all_ethnicity_count)
+
+treemap(all_ethnicity_count, 
+        index = "ethnicity", 
+        vSize = "count", 
+        type = "index",
+        title = "Ethnicity count",
+        title.legend = "Ethnicity",
+        )
+
+PlotXTabs2(
+  data = RK_violence_ethnicity,
+  y = ScoreText,
+  x = Ethnic_Code_Text,
+  plottype = "side",
+  xlab = "Ethnicity",
+  ylab = NULL,
+  label.text.size = 2,
+  results.subtitle = FALSE,
+  sample.size.label = FALSE,
+  data.label = "counts",
+  legend.title = "Risk of violence",
+  legend.position = "right",
+  title = "Risk of violence by ethnicity",
+  palette = "Set1"
+)
+
+PlotXTabs2(
+  data = RK_violence_ethnicity,
+  y = ScoreText,
+  x = Ethnic_Code_Text,
+  xlab = "Ethnicity",
+  ylab = NULL,
+  results.subtitle = FALSE,
+  legend.title = "Risk of violence",
+  legend.position = "right",
+  title = "Risk of violence by ethnicity",
+  palette = "Set1"
+)
+
+```
+
+We find in the dataset a total number of 20281 defendants. The majority of defendants belong to the ethnic groups of African Americans (44.406%) and Caucasians (35.802%). The other ethnic groups represent a much smaller proportion. If we take a look at the distribution of each individual's presumed violence risk score by ethnicity, we can see some very interesting information. The violence risk score is a number between 0 and 10 but on the graphs presented above, we use 3 categories: low (0-4), medium (5-7) and high (8-10). The first graph shows us visually that the African American and Caucasian ethnic groups are the most represented. However, this visualization is not relevant to draw conclusions about the score so we made the second graph. On this one we no longer plot the number of individuals in ordinal but we plot the percentage of individuals in each score category for each ethnicity. We see that the "Low" category is the most represented regardless of ethnic group. However, the African American and Native American categories have a higher proportion of Medium and High risk individuals than the other categories. We will try to explain these results later.
+
+### Ages analysis
+
+```{r}
+
+all_ages = unique(RK_violence$Age)
+RK_violence_age <-  subset(RK_violence, select = c(Age, ScoreText, AgeGroup)) 
+
+# Console display of the distribution of different ages
+for (age in all_ages){
+  print(paste("Distribution of people who are ", age, "years old :", round((nrow(subset(RK_violence, Age == age))/nb_defendants)*100, 3),"%"))
+}
+
+# Create a vector with the number of defendants per age
+def_by_age <- sapply(all_ages, function(age) nrow(subset(RK_violence, Age == age)))
+
+# Display a bar chart for the distribution of ages
+barplot(def_by_age, names.arg = all_ages, xlab = "Age", ylab = "Number of defendants", main = "Distribution of defendants' ages")
+
+# Create a data frame with the distribution of ages
+age_distribution <- data.frame(age = all_ages, percentage = sapply(all_ages, function(x) {nrow(subset(RK_violence, Age == x))/nb_defendants}))
+
+# Create a histogram of age distribution
+ggplot(age_distribution, aes(x=age, y=percentage)) + 
+  geom_bar(stat="identity") +
+  labs(title="Age distribution of the defendants", x="Age", y="Pourcentage") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+PlotXTabs2(
+  data = RK_violence_age,
+  y = ScoreText,
+  x = AgeGroup,
+  plottype = "side",
+  xlab = "Ethnicity",
+  ylab = NULL,
+  label.text.size = 2,
+  results.subtitle = FALSE,
+  sample.size.label = FALSE,
+  data.label = "counts",
+  legend.title = "Risk of violence",
+  legend.position = "right",
+  title = "Risk of violence by AgeGroup",
+  palette = "Set1"
+)
+
+PlotXTabs2(
+  data = RK_violence_age,
+  y = ScoreText,
+  x = AgeGroup,
+  xlab = "Age Groups",
+  ylab = NULL,
+  results.subtitle = FALSE,
+  legend.title = "Risk of violence",
+  legend.position = "right",
+  title = "Risk of violence by AgeGroup",
+  palette = "Set1"
+)
+
+```
+
+We observe that there is still a fairly uniform distribution among the different age groups, however, we still have a concentration of defendants in the age group of 30-40 years. One thing is particularly obvious when looking at the violence risk score: the younger the chosen age category, the greater the proportion of high-risk individuals in this category. In particular, more than 80% of individuals under the age of 30 are individuals presumed to be at risk.
+
+### Sexes analysis
+
+```{r}
+
+all_sexes = unique(RK_violence$Sex_Code_Text)
+
+# Console display of the distribution of different sexes
+for (sex in all_sexes){
+  print(paste("Distribution of",sex,":", round((nrow(subset(RK_violence, Sex_Code_Text == sex))/nb_defendants)*100, 3),"%"))
+}
+
+# Create a data frame with the sex distribution
+sex_distribution <- data.frame(sex = all_sexes, percentage = sapply(all_sexes, function(x) {nrow(subset(RK_violence, Sex_Code_Text == x))/nb_defendants}))
+
+# Pie chart of sex distribution
+ggplot(sex_distribution, aes(x = "", y = percentage, fill = sex)) + 
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0) +
+  labs(title = "Sex distribution in the dataset")+ 
+  theme_void() +
+  geom_text(aes(label = paste0(round(percentage*100), "%")), position = position_stack(vjust = 0.5)) +
+  scale_fill_brewer(palette="Set1")
+
+PlotXTabs2(
+  data = RK_violence,
+  y = ScoreText,
+  x = Sex_Code_Text,
+  plottype = "side",
+  xlab = "Sex",
+  ylab = NULL,
+  label.text.size = 2,
+  results.subtitle = FALSE,
+  sample.size.label = FALSE,
+  data.label = "counts",
+  legend.title = "Risk of violence",
+  legend.position = "right",
+  title = "Risk of violence by sex",
+  palette = "Set1"
+)
+
+PlotXTabs2(
+  data = RK_violence,
+  y = ScoreText,
+  x = Sex_Code_Text,
+  xlab = "Sex",
+  ylab = NULL,
+  results.subtitle = FALSE,
+  legend.title = "Risk of violence",
+  legend.position = "right",
+  title = "Risk of violence by sex",
+  palette = "Set1"
+)
+```
+
+We observe here that the majority sex of individuals in the compas dataset are men (78%). Despite this, the proportion of dangerous individuals is globally identical regardless of gender. We can simply note that 6% more men are at medium risk and at high risk.
+
+## Risk of Recidivism analysis
+
+We will now focus our interest on the recidivism risk dataset. We will try to determine which variables are most relevant for predicting the probability of recidivism. First, we perform a logistic regression on the dataset against the recidivism score. We decide to separate the individuals with a low chance of recidivism on one side and those with a medium and high on the other. Let's see which variables are the most statistically significant in explaining the chances of recidivism.
+
+```{r}
+resultat <- sapply(RK_recidivism, function(x) nlevels(factor(x)))
+
+
+set.seed(123) # Pour reproduire les résultats
+train_index <- sample(nrow(RK_recidivism), round(nrow(RK_recidivism)*0.8), replace = FALSE)
+train_data <- RK_recidivism[train_index, ]
+test_data <- RK_recidivism[-train_index, ]
+
+
+train_data$DecileScore <- ifelse(train_data$DecileScore < 5, 0, 1)
+test_data$DecileScore <- ifelse(test_data$DecileScore < 5, 0, 1)
+
+# Exécuter la régression logistique
+train_data$AgeGroup <- relevel(train_data$AgeGroup, "30-40")
+train_data$Sex_Code_Text <- relevel(factor(train_data$Sex_Code_Text), "Male")
+model <- glm(DecileScore ~ . , data = train_data, family = binomial)
+
+drop1(model, test = "Chisq")
+```
+
+We started our analysis by applying the `drop1` function to our model. This function compares a full model to a series of simpler models, each obtained by dropping one explanatory variable at a time from the full model. Specifically, the `drop1` function computes a series of tests for each explanatory variable in the full model, assuming that all other explanatory variables are present. It then returns a table that summarizes these tests as well as the deviance differences and the corresponding p-values. The table thus allows us to compare the full and simplified models to determine which explanatory variables are significant in explaining the variance in the data.
+
+The output shows that all variables except "Sex_Code_Text" and "CustodyStatus" are significantly associated with "DecileScore" (at the 0.05 level). For example, "Ethnic_Code_Text" has a very low p-value, indicating that there is strong evidence that ethnicity is associated with decile score. Similarly, "ScaleSet", "LegalStatus", "MaritalStatus", "Age", and "AgeGroup" are also strongly associated with "DecileScore". The variable "Language" is weakly but still significantly associated with "DecileScore".
+
+```{r}
+summary(model)
+```
+
+The summary of the model is already difficult to read mainly because the references of each variable do not appear, so we will draw some graphs to better visualize the results. We exclude the variables LegalStatus and CustodyStatus because none of their subcategories are significant and have a p-value \<0.05.
+
+```{r}
+ggcoef_model(model, include = c("Sex_Code_Text", "Language", "AgeGroup"), exponentiate = TRUE)
+```
+
+Being male or female did not appear to impact the odds of recidivism. However, as previously stated, gender did not appear to be a statistically significant variable so these results may be due to chance.
+
+Similarly, it seems that individuals under 25 years of age have an enormous chance of committing recidivism. However, the results are not significant because of the small number of individuals under 25 years of age in the dataset. Surprisingly, increasing age seems to be correlated with increasing chances of recidivism.
+
+```{r}
+ggcoef_model(model, include = c("Ethnic_Code_Text", "MaritalStatus"), exponentiate = TRUE)
+```
+
+Ethnicity and marital status are the variables with the largest number of significant subcategories.
+
+Overall, all ethnicities appear to have lower odds of recidivism than Afro Americans and Native Americans, who have much higher odds than others (Afro Americans being taken as the reference for the regression). However, the Afro and Native categories were not significant. The other ethnicities were statistically less likely to commit recidivism, but being Afro or Native American did not explain a high chance of recidivism.
+
+Regarding marital status, being single or widowed increases the odds of recidivism while being married decreases them.
+
+Now, let's try to test our model to see its performance.
+
+```{r}
+# Faire des prédictions sur les données de test
+
+predictions <- predict(model, newdata = test_data, type = "response")
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+# Créer une matrice de confusion
+confusion_matrix <- table(predicted_classes, test_data$DecileScore)
+confusion_df <- as.data.frame.matrix(confusion_matrix)
+
+formattable(confusion_df, list(
+  `1` = color_tile("#000000", "#2a9fd6"),
+  `0` = color_tile("#000000", "#ff5722")
+))
+
+confusion_df
+```
+
+The predictions of our model are rather bad. We note an accuracy of about 60%. This could be due to the fact that we remove a lot of variables in the pre-processing of the dataset. By doing several tests, we realized that the variable RecSupervisionLevelText had a big impact on the accuracy of the model. So we redid our model keeping this variable and we found the following results:
+
+```{r}
+RK_recidivism <- subset(compas_all_data, DisplayText == "Risk of Recidivism")
+RK_recidivism <- subset(RK_recidivism, select = -c(DisplayText,ScoreText,ScaleSet, ScaleSet_ID,RecSupervisionLevel,AssessmentType,Agency_Text))
+
+set.seed(123) # Pour reproduire les résultats
+train_index <- sample(nrow(RK_recidivism), round(nrow(RK_recidivism)*0.8), replace = FALSE)
+train_data <- RK_recidivism[train_index, ]
+test_data <- RK_recidivism[-train_index, ]
+
+
+train_data$DecileScore <- ifelse(train_data$DecileScore < 5, 0, 1)
+test_data$DecileScore <- ifelse(test_data$DecileScore < 5, 0, 1)
+
+
+train_data$AgeGroup <- relevel(train_data$AgeGroup, "30-40")
+train_data$Sex_Code_Text <- relevel(factor(train_data$Sex_Code_Text), "Male")
+model <- glm(DecileScore ~ . , data = train_data, family = binomial)
+
+predictions <- predict(model, newdata = test_data, type = "response")
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+
+confusion_matrix <- table(predicted_classes, test_data$DecileScore)
+confusion_df <- as.data.frame.matrix(confusion_matrix)
+
+formattable(confusion_df, list(
+`1` = color_tile("#000000", "#2a9fd6"),
+`0` = color_tile("#000000", "#ff5722")
+))
+
+confusion_df
+```
+
+-   2234 observations were correctly classified as negative by the model (predicted value = 0, actual value = 0).
+
+-   67 observations were classified as positive by the model when they were actually negative (predicted value = 1, actual value = 0), corresponding to false positives.
+
+-   298 observations were classified as negative by the model when they were actually positive (predicted value = 0, actual value = 1), corresponding to false negatives.
+
+-   1457 observations were correctly classified as positive by the model (predicted value = 1, actual value = 1).
+
+We then attempted to perform a multinomial logistic regression to have a more interesting classification of individuals.
+
+```{r}
+set.seed(123) # Pour reproduire les résultats
+train_index <- sample(nrow(RK_recidivism), round(nrow(RK_recidivism)*0.8), replace = FALSE)
+train_data <- RK_recidivism[train_index, ]
+test_data <- RK_recidivism[-train_index, ]
+
+
+# Convertir la variable DecileScore en facteur avec les niveaux spécifiés
+train_data$DecileScore <- factor(ifelse(train_data$DecileScore < 5, "low", ifelse(train_data$DecileScore <= 7, "medium", "high")), 
+                                 levels = c("low", "medium", "high"))
+test_data$DecileScore <- factor(ifelse(test_data$DecileScore < 5, "low", ifelse(test_data$DecileScore <= 7, "medium", "high")), 
+                                levels = c("low", "medium", "high"))
+
+# Exécuter la régression logistique multinomiale
+model_multinom <- multinom(DecileScore ~ ., data = train_data)
+
+summary(model_multinom)
+
+# Prédire les classes pour les données de test
+predicted_classes <- predict(model_multinom, newdata = test_data, type = "class")
+
+# Créer une matrice de confusion
+confusion_matrix <- confusionMatrix(predicted_classes, test_data$DecileScore)
+confusion_df <- as.data.frame.matrix(confusion_matrix$table)
+
+confusion_table <- formattable(confusion_df, align = "c", list(
+  `low` = color_tile("#000000", "#2A9FD6"),
+  `medium` = color_tile("#000000", "#2A9FD6"),
+  `high` = color_tile("#000000", "#2A9FD6")
+))
+confusion_matrix
+confusion_table
+```
+
+Our model based on a mutinomial logistic regression presents excellent results with an accuracy of almost 90%.
