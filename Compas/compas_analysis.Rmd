@@ -24,6 +24,7 @@ library(caret)
 library(MASS)
 library(broom.helpers)
 library(GGally)
+library(RColorBrewer)
 ```
 
 ## Dataset cleaning
@@ -401,3 +402,42 @@ confusion_table
 Our model based on a mutinomial logistic regression presents excellent results with an accuracy of almost 90%.
 
 The results obtained with the variable RecSupervisionLevelText are so good that we can wonder if it overfit the model. In fact, this variable makes it possible to determine the level of surveillance required for each individual according to their risk of recidivism. RecSupervisionLevel is logically deduced from the risk of recidivism, so we cannot use it to predict it.
+
+## Distribution of actual recidivism outcomes 
+
+Let's now look at the characteristics of the people who actually committed recidivism and see what their decile score was. We have to change the dataset because the one we have been using since the beginning of the analysis does not indicate whether the individuals have committed recidivism. The new dataset includes an "is_recid" column that indicates whether the individual has reoffended within two years of release from jail.
+
+```{r}
+people_data <- read.csv("people-compas.csv")
+
+recidiv_individuals <- subset(people_data, is_recid == "1")
+recidiv_individuals$age_grp <- cut(recidiv_individuals$age, age_groups, labels = c("<25", "25-30", "30-40", "40-50", "50-60", ">60"))
+recidiv_individuals <- subset(recidiv_individuals, decile_score != -1)
+```
+
+```{r}
+ggplot(recidiv_individuals,aes(x=factor(race)))+
+  geom_bar(fill = brewer.pal(length(unique(recidiv_individuals$race)), "Set3")) + 
+  labs(title="Ethnicity of recidivist individuals", x="Ethnicity", y = "Number of individuals") + geom_text(aes(label=..count..),stat='count',position=position_dodge(0.9),vjust=-0.2) + theme_minimal()
+```
+
+```{r}
+ggplot(recidiv_individuals,aes(x=factor(age_grp)))+
+  geom_bar(fill = brewer.pal(length(unique(recidiv_individuals$age_grp)), "Set3")) + 
+  labs(title="Age group of recidivist individuals", x="Age groupe", y = "Number of individuals") + geom_text(aes(label=..count..),stat='count',position=position_dodge(0.9),vjust=-0.2) + theme_minimal()
+```
+
+```{r}
+ggplot(recidiv_individuals,aes(x=factor(sex))) +
+  geom_bar(aes(fill = factor(sex))) + 
+  scale_fill_manual(values = c("#F8766D", "#00BFC4")) +
+  labs(title="Age group of recidivist individuals", x="Age groupe", y = "Number of individuals") + geom_text(aes(label=..count..),stat='count',position=position_dodge(0.9),vjust=-0.2) + theme_minimal()
+```
+
+```{r}
+ggplot(recidiv_individuals, aes(x = factor(decile_score))) +
+  geom_bar(aes(fill = decile_score)) +
+  scale_fill_gradient(low = "#4CA754", high = "#D3312C", name = "Decile Score") +
+  labs(title = "Decile score of recidivist individuals", x = "Decile score", y = "Number of individuals") + geom_text(aes(label=..count..),stat='count',position=position_dodge(0.9),vjust=-0.2) + theme_minimal()
+  
+```
