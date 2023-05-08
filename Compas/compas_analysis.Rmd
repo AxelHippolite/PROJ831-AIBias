@@ -399,3 +399,5 @@ confusion_table
 ```
 
 Our model based on a mutinomial logistic regression presents excellent results with an accuracy of almost 90%.
+
+The results obtained with the variable RecSupervisionLevelText are so good that we can wonder if it overfit the model. In fact, this variable makes it possible to determine the level of surveillance required for each individual according to their risk of recidivism. RecSupervisionLevel is logically deduced from the risk of recidivism, so we cannot use it to predict it.
