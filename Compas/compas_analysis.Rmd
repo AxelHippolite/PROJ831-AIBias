@@ -10,7 +10,7 @@ output: html_document:
 
 ------------------------------------------------------------------------
 
-## Libraries installations 
+## Libraries installations
 
 ```{r}
 install.packages(c("CGPfunctions", "treemap", "ggplot2", "formattable", "nnet", "caret", "MASS", "broom.helpers", "GGally", "RColorBrewer"))
@@ -57,36 +57,35 @@ compas_all_data<- subset(compas_all_data, select = -c(LastName, FirstName, Middl
 
 # Separation of datasets 
 RK_recidivism <- subset(compas_all_data, DisplayText == "Risk of Recidivism")
-RK_recidivism <- subset(RK_recidivism, select = -c(DisplayText,ScoreText,ScaleSet, ScaleSet_ID,RecSupervisionLevel,RecSupervisionLevelText,AssessmentType,Agency_Text))
 RK_violence <- subset(compas_all_data, DisplayText == "Risk of Violence")
 RK_failure_appear <- subset(compas_all_data, DisplayText == "Risk of Failure to Appear")
 
 ```
 
-## Risk of violence analysis
+## Recidivism distribution analysis
 
-As a first step, we chose to study the risk of violence dataset. Let's look at the number of defendants and the distribution of age, sexes, ethnicity etc.
+As a first step, we chose to study the risk of recidivism dataset. Let's look at the number of defendants and the distribution of age, sexes, ethnicity etc.
 
 ### Ethnicity analysis
 
 ```{r}
 # Calculation of the number of defendants
-nb_defendants <- nrow(RK_violence)
+nb_defendants <- nrow(RK_recidivism)
 
 # Extraction of all ethnic groups and their number of individuals
-all_ethnicity <- unique(RK_violence$Ethnic_Code_Text)
+all_ethnicity <- unique(RK_recidivism$Ethnic_Code_Text)
 all_ethnicity_count <- data.frame(ethnicity = character(), count = numeric())
-RK_violence_ethnicity <-  subset(RK_violence, select = c(Ethnic_Code_Text, ScoreText)) 
+RK_recidivism_ethnicity <-  subset(RK_recidivism, select = c(Ethnic_Code_Text, ScoreText)) 
 
 for (ethnicity in all_ethnicity){
-  count <- nrow(subset(RK_violence, Ethnic_Code_Text == ethnicity))
+  count <- nrow(subset(RK_recidivism, Ethnic_Code_Text == ethnicity))
   all_ethnicity_count <- rbind(all_ethnicity_count, data.frame(ethnicity = ethnicity, count = count))
 }
 
 # Console display of the distribution of different races
 print(paste("Total number of defendants :", nb_defendants))
 for (ethnicity in all_ethnicity){
-  print(paste("distribution of",ethnicity, ":", round((nrow(subset(RK_violence_ethnicity, Ethnic_Code_Text == ethnicity))/nb_defendants)*100,3),"%"))
+  print(paste("distribution of",ethnicity, ":", round((nrow(subset(RK_recidivism_ethnicity, Ethnic_Code_Text == ethnicity))/nb_defendants)*100,3),"%"))
 }
 
 print(all_ethnicity_count)
@@ -100,7 +99,7 @@ treemap(all_ethnicity_count,
         )
 
 PlotXTabs2(
-  data = RK_violence_ethnicity,
+  data = RK_recidivism_ethnicity,
   y = ScoreText,
   x = Ethnic_Code_Text,
   plottype = "side",
@@ -110,49 +109,49 @@ PlotXTabs2(
   results.subtitle = FALSE,
   sample.size.label = FALSE,
   data.label = "counts",
-  legend.title = "Risk of violence",
+  legend.title = "Risk of recidivism",
   legend.position = "right",
-  title = "Risk of violence by ethnicity",
+  title = "Risk of recidivism by ethnicity",
   palette = "Set1"
 )
 
 PlotXTabs2(
-  data = RK_violence_ethnicity,
+  data = RK_recidivism_ethnicity,
   y = ScoreText,
   x = Ethnic_Code_Text,
   xlab = "Ethnicity",
   ylab = NULL,
   results.subtitle = FALSE,
-  legend.title = "Risk of violence",
+  legend.title = "Risk of recidivism",
   legend.position = "right",
-  title = "Risk of violence by ethnicity",
+  title = "Risk of recidivism by ethnicity",
   palette = "Set1"
 )
 
 ```
 
-We find in the dataset a total number of 20281 defendants. The majority of defendants belong to the ethnic groups of African Americans (44.406%) and Caucasians (35.802%). The other ethnic groups represent a much smaller proportion. If we take a look at the distribution of each individual's presumed violence risk score by ethnicity, we can see some very interesting information. The violence risk score is a number between 0 and 10 but on the graphs presented above, we use 3 categories: low (0-4), medium (5-7) and high (8-10). The first graph shows us visually that the African American and Caucasian ethnic groups are the most represented. However, this visualization is not relevant to draw conclusions about the score so we made the second graph. On this one we no longer plot the number of individuals in ordinal but we plot the percentage of individuals in each score category for each ethnicity. We see that the "Low" category is the most represented regardless of ethnic group. However, the African American and Native American categories have a higher proportion of Medium and High risk individuals than the other categories. We will try to explain these results later.
+We find in the dataset a total number of 20281 defendants. The majority of defendants belong to the ethnic groups of African Americans (44%) and Caucasians (35%). The other ethnic groups represent a much smaller proportion. If we take a look at the distribution of each individual's presumed recidivism risk score by ethnicity, we can see some very interesting information. The recidivism risk score is a number between 0 and 10 but on the graphs presented above, we use 3 categories: low (0-4), medium (5-7) and high (8-10). The first graph shows us visually that the African American and Caucasian ethnic groups are the most represented. However, this visualization is not relevant to draw conclusions about the score so we made the second graph. On this one we no longer plot the number of individuals in ordinal but we plot the percentage of individuals in each score category for each ethnicity. We see that the "Low" category is the most represented regardless of ethnic group. However, the African American and Native American categories have a higher proportion of Medium and High risk individuals than the other categories. We will try to explain these results later.
 
 ### Ages analysis
 
 ```{r}
 
-all_ages = unique(RK_violence$Age)
-RK_violence_age <-  subset(RK_violence, select = c(Age, ScoreText, AgeGroup)) 
+all_ages = unique(RK_recidivism$Age)
+RK_recidivism_age <-  subset(RK_recidivism, select = c(Age, ScoreText, AgeGroup)) 
 
 # Console display of the distribution of different ages
 for (age in all_ages){
-  print(paste("Distribution of people who are ", age, "years old :", round((nrow(subset(RK_violence, Age == age))/nb_defendants)*100, 3),"%"))
+  print(paste("Distribution of people who are ", age, "years old :", round((nrow(subset(RK_recidivism, Age == age))/nb_defendants)*100, 3),"%"))
 }
 
 # Create a vector with the number of defendants per age
-def_by_age <- sapply(all_ages, function(age) nrow(subset(RK_violence, Age == age)))
+def_by_age <- sapply(all_ages, function(age) nrow(subset(RK_recidivism, Age == age)))
 
 # Display a bar chart for the distribution of ages
 barplot(def_by_age, names.arg = all_ages, xlab = "Age", ylab = "Number of defendants", main = "Distribution of defendants' ages")
 
 # Create a data frame with the distribution of ages
-age_distribution <- data.frame(age = all_ages, percentage = sapply(all_ages, function(x) {nrow(subset(RK_violence, Age == x))/nb_defendants}))
+age_distribution <- data.frame(age = all_ages, percentage = sapply(all_ages, function(x) {nrow(subset(RK_recidivism, Age == x))/nb_defendants}))
 
 # Create a histogram of age distribution
 ggplot(age_distribution, aes(x=age, y=percentage)) + 
@@ -162,7 +161,7 @@ ggplot(age_distribution, aes(x=age, y=percentage)) +
   theme(plot.title = element_text(hjust = 0.5))
 
 PlotXTabs2(
-  data = RK_violence_age,
+  data = RK_recidivism_age,
   y = ScoreText,
   x = AgeGroup,
   plottype = "side",
@@ -172,42 +171,42 @@ PlotXTabs2(
   results.subtitle = FALSE,
   sample.size.label = FALSE,
   data.label = "counts",
-  legend.title = "Risk of violence",
+  legend.title = "Risk of recidivism",
   legend.position = "right",
-  title = "Risk of violence by AgeGroup",
+  title = "Risk of recidivism by AgeGroup",
   palette = "Set1"
 )
 
 PlotXTabs2(
-  data = RK_violence_age,
+  data = RK_recidivism_age,
   y = ScoreText,
   x = AgeGroup,
   xlab = "Age Groups",
   ylab = NULL,
   results.subtitle = FALSE,
-  legend.title = "Risk of violence",
+  legend.title = "Risk of recidivism",
   legend.position = "right",
-  title = "Risk of violence by AgeGroup",
+  title = "Risk of recidivism by AgeGroup",
   palette = "Set1"
 )
 
 ```
 
-We observe that there is still a fairly uniform distribution among the different age groups, however, we still have a concentration of defendants in the age group of 30-40 years. One thing is particularly obvious when looking at the violence risk score: the younger the chosen age category, the greater the proportion of high-risk individuals in this category. In particular, more than 80% of individuals under the age of 30 are individuals presumed to be at risk.
+We observe that there is still a fairly uniform distribution among the different age groups, however, we still have a concentration of defendants in the age group of 30-40 years. One thing is particularly obvious when looking at the recidivism risk score: the younger the chosen age category, the greater the proportion of high-risk individuals in this category. In particular, more than 70% of individuals under the age of 30 are individuals presumed to be at risk.
 
 ### Sexes analysis
 
 ```{r}
 
-all_sexes = unique(RK_violence$Sex_Code_Text)
+all_sexes = unique(RK_recidivism$Sex_Code_Text)
 
 # Console display of the distribution of different sexes
 for (sex in all_sexes){
-  print(paste("Distribution of",sex,":", round((nrow(subset(RK_violence, Sex_Code_Text == sex))/nb_defendants)*100, 3),"%"))
+  print(paste("Distribution of",sex,":", round((nrow(subset(RK_recidivism, Sex_Code_Text == sex))/nb_defendants)*100, 3),"%"))
 }
 
 # Create a data frame with the sex distribution
-sex_distribution <- data.frame(sex = all_sexes, percentage = sapply(all_sexes, function(x) {nrow(subset(RK_violence, Sex_Code_Text == x))/nb_defendants}))
+sex_distribution <- data.frame(sex = all_sexes, percentage = sapply(all_sexes, function(x) {nrow(subset(RK_recidivism, Sex_Code_Text == x))/nb_defendants}))
 
 # Pie chart of sex distribution
 ggplot(sex_distribution, aes(x = "", y = percentage, fill = sex)) + 
@@ -219,7 +218,7 @@ ggplot(sex_distribution, aes(x = "", y = percentage, fill = sex)) +
   scale_fill_brewer(palette="Set1")
 
 PlotXTabs2(
-  data = RK_violence,
+  data = RK_recidivism,
   y = ScoreText,
   x = Sex_Code_Text,
   plottype = "side",
@@ -236,7 +235,7 @@ PlotXTabs2(
 )
 
 PlotXTabs2(
-  data = RK_violence,
+  data = RK_recidivism,
   y = ScoreText,
   x = Sex_Code_Text,
   xlab = "Sex",
@@ -249,13 +248,16 @@ PlotXTabs2(
 )
 ```
 
-We observe here that the majority sex of individuals in the compas dataset are men (78%). Despite this, the proportion of dangerous individuals is globally identical regardless of gender. We can simply note that 6% more men are at medium risk and at high risk.
+We observe here that the majority sex of individuals in the compas dataset are men (78%). Despite this, the proportion of dangerous individuals is globally identical regardless of gender.
 
-## Risk of Recidivism analysis
+## Logistic Regressions
 
-We will now focus our interest on the recidivism risk dataset. We will try to determine which variables are most relevant for predicting the probability of recidivism. First, we perform a logistic regression on the dataset against the recidivism score. We decide to separate the individuals with a low chance of recidivism on one side and those with a medium and high on the other. Let's see which variables are the most statistically significant in explaining the chances of recidivism.
+We will now try to determine which variables are most relevant for predicting the probability of recidivism. First, we perform a logistic regression on the dataset against the recidivism score. We decide to separate the individuals with a low chance of recidivism on one side and those with a medium and high on the other. Let's see which variables are the most statistically significant in explaining the chances of recidivism.
+
+### Determination of relevant variables
 
 ```{r}
+RK_recidivism <- subset(RK_recidivism, select = -c(DisplayText,ScoreText,ScaleSet, ScaleSet_ID,RecSupervisionLevel,RecSupervisionLevelText,AssessmentType,Agency_Text))
 resultat <- sapply(RK_recidivism, function(x) nlevels(factor(x)))
 
 
@@ -407,12 +409,12 @@ Our model based on a mutinomial logistic regression presents excellent results w
 
 The results obtained with the variable RecSupervisionLevelText are so good that we can wonder if it overfit the model. In fact, this variable makes it possible to determine the level of surveillance required for each individual according to their risk of recidivism. RecSupervisionLevel is logically deduced from the risk of recidivism, so we cannot use it to predict it.
 
-## Distribution of actual recidivism outcomes 
+## Distribution of actual recidivism outcomes
 
 Let's now look at the characteristics of the people who actually committed recidivism and see what their decile score was. We have to change the dataset because the one we have been using since the beginning of the analysis does not indicate whether the individuals have committed recidivism. The new dataset includes an "is_recid" column that indicates whether the individual has reoffended within two years of release from jail.
 
 ```{r}
-people_data <- read.csv("people-compas.csv.csv")
+people_data <- read.csv("people-compas.csv")
 
 recidiv_individuals <- subset(people_data, is_recid == "1")
 recidiv_individuals$age_grp <- cut(recidiv_individuals$age, age_groups, labels = c("<25", "25-30", "30-40", "40-50", "50-60", ">60"))
@@ -435,7 +437,7 @@ ggplot(recidiv_individuals,aes(x=factor(age_grp)))+
 ggplot(recidiv_individuals,aes(x=factor(sex))) +
   geom_bar(aes(fill = factor(sex))) + 
   scale_fill_manual(values = c("#F8766D", "#00BFC4")) +
-  labs(title="Age group of recidivist individuals", x="Age groupe", y = "Number of individuals") + geom_text(aes(label=..count..),stat='count',position=position_dodge(0.9),vjust=-0.2) + theme_minimal()
+  labs(title="Age group of recidivist individuals", x="Age groupe", y = "Number of individuals") + geom_text(aes(label=..count..),stat='count',position=position_dodge(0.9),vjust=-0.2) + theme_minimal() + theme_minimal()
 ```
 
 ```{r}
