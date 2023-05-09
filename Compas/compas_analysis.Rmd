@@ -10,14 +10,18 @@ output: html_document:
 
 ------------------------------------------------------------------------
 
-## Library imports
+## Libraries installations 
+
+```{r}
+install.packages(c("CGPfunctions", "treemap", "ggplot2", "formattable", "nnet", "caret", "MASS", "broom.helpers", "GGally", "RColorBrewer"))
+```
+
+## Libraries import
 
 ```{r}
 library(CGPfunctions)
 library(treemap)
 library(ggplot2)
-library(FactoMineR)
-library(Factoshiny)
 library(formattable)
 library(nnet)
 library(caret)
@@ -408,7 +412,7 @@ The results obtained with the variable RecSupervisionLevelText are so good that 
 Let's now look at the characteristics of the people who actually committed recidivism and see what their decile score was. We have to change the dataset because the one we have been using since the beginning of the analysis does not indicate whether the individuals have committed recidivism. The new dataset includes an "is_recid" column that indicates whether the individual has reoffended within two years of release from jail.
 
 ```{r}
-people_data <- read.csv("people-compas.csv")
+people_data <- read.csv("people-compas.csv.csv")
 
 recidiv_individuals <- subset(people_data, is_recid == "1")
 recidiv_individuals$age_grp <- cut(recidiv_individuals$age, age_groups, labels = c("<25", "25-30", "30-40", "40-50", "50-60", ">60"))
