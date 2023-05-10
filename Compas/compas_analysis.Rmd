@@ -424,7 +424,7 @@ people_data$first <- tolower(people_data$first)
 
 # Join the two datasets based on matching columns
 merged_data <- merge(RK_recidivism, people_data, by.x = c("LastName", "FirstName"), by.y = c("last", "first"))
-merged_data <- subset(merged_data, select = c(MaritalStatus, CustodyStatus, LegalStatus, age_cat, sex, priors_count, is_recid, days_b_screening_arrest, c_charge_degree, race, Language, DecileScore))
+merged_data <- subset(merged_data, select = c(MaritalStatus, CustodyStatus, age_cat, priors_count, is_recid, race, Language, DecileScore))
 
 # Find columns with unique values
 unique_value_columns <- sapply(merged_data, function(x) length(unique(x)) == 1)
@@ -433,7 +433,7 @@ columns_to_remove <- unique_value_columns | na_columns
 
 # Remove columns with unique values or all NA values
 filtered_data <- merged_data[, !columns_to_remove]
-filtered_data <- subset(filtered_data, c_charge_degree != "")
+#filtered_data <- subset(filtered_data, c_charge_degree != "")
 
 filtered_data$DecileScore <- ifelse(filtered_data$DecileScore < 5, 0, 1)
 filtered_data$race <- ifelse(filtered_data$race == "African-American", 0, 1)
@@ -467,9 +467,57 @@ summary(model_binar)
 confusionMatrix(confusion_matrix)
 ```
 
-The predictions of our new model are quite good. We obtain an accuracy of 75%.
+The predictions of our new model are quite good. We obtain an accuracy of 74%.
 
 ### Bias and fairness of the models
+
+```{r}
+african_american_data <- test_data[test_data$race == 0, ]
+other_data <- test_data[test_data$race == 1, ]
+
+
+p_y_1_d_1 = mean(african_american_data$DecileScore == 1, na.rm = TRUE)
+p_y_1_d_0 = mean(other_data$DecileScore == 1, na.rm = TRUE)
+p_d_1 = nrow(african_american_data)/nrow(test_data)
+p_d_0 = nrow(other_data)/nrow(test_data)
+
+SPD = p_y_1_d_1 - p_y_1_d_0
+print(paste0("SPD: ", SPD))
+
+
+di = (p_y_1_d_1 / p_y_1_d_0) / (p_d_1/p_d_0)
+print(paste0("DI: ", di))
+
+# Calculate true positives and false positives for African-American group
+african_american_true_positives <- sum(african_american_data$DecileScore == 1 & african_american_data$is_recid == 1)
+african_american_false_positives <- sum(african_american_data$DecileScore == 1 & african_american_data$is_recid == 0)
+
+p_y_1_D1_Y_1 <- african_american_true_positives / (african_american_true_positives + african_american_false_positives)
+
+# Calculate true positives and false positives for other ethnic groups
+other_true_positives <- sum(other_data$DecileScore == 1 & other_data$is_recid == 1)
+other_false_positives <- sum(other_data$DecileScore == 1 & other_data$is_recid == 0)
+
+p_y_1_D0_Y_1 <- other_true_positives / (other_true_positives + other_false_positives)
+
+# Calculate Equal Opportunity Difference (EOD)
+eod <- p_y_1_D1_Y_1 - p_y_1_D0_Y_1 
+print(paste0("EOD: ", eod))
+```
+
+Here are the results we obtained:
+
+SPD (Statistical Parity Difference): 0.274 ; DI (Disparate Impact Ratio): 1.937 ; EOD (Equal Opportunity Difference): 0.0856
+
+Analysis of the results:
+
+The SPD measures the difference in positive classification rates between the two groups (here, African-Americans and other ethnic groups). An SPD of 0.274 indicates a substantial difference, suggesting that the model classifies African-Americans as having a high risk of recidivism much more often than other ethnic groups.
+
+The di measures the ratio of disproportionate odds between the two groups. A di greater than 1 indicates that African-Americans have disproportionate odds of being classified as high risk for recidivism compared to other ethnic groups. A di of 1.937 means that African-Americans are 1.937 times more likely to be classified as high risk than other ethnic groups.
+
+The EOD measures the difference in true positive rates (TPR) between the two groups. A value of 0.0856 means that the true positive rate is slightly higher for African-Americans than for other ethnic groups.
+
+In summary, the results suggest that the binary logistic regression model exhibits significant biases in favor of African-Americans, who are more likely to be classified as having a high risk of recidivism compared to other ethnic groups. It is important to consider these biases when using this model to make decisions about individuals and to explore approaches to mitigate these biases in future analyses.
 
 ## Distribution of actual recidivism outcomes
 
