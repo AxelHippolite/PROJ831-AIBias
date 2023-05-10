@@ -6,7 +6,7 @@ output: html_document:
   number_sections: TRUE
 ---
 
-# Compas Dataset Analysis
+# COMPAS Dataset Analysis
 
 ------------------------------------------------------------------------
 
@@ -29,12 +29,9 @@ library(MASS)
 library(broom.helpers)
 library(GGally)
 library(RColorBrewer)
-library(plotly)
 ```
 
 ## Dataset cleaning
-
-We saw that each row in the original dataset was duplicated for each type of assessment. We have therefore separated the dataset into 3 dataframes corresponding to each of the categories.
 
 ```{r}
 # Import CSV
@@ -249,9 +246,9 @@ PlotXTabs2(
 )
 ```
 
-We observe here that the majority sex of individuals in the compas dataset are men (78%). Despite this, the proportion of dangerous individuals is globally identical regardless of gender.
+We observe here that the majority sex of individuals in the COMPAS dataset are men (78%). Despite this, the proportion of dangerous individuals is globally identical regardless of gender.
 
-## Logistic Regressions
+## Machine Learning model
 
 We will now try to determine which variables are most relevant for predicting the probability of recidivism. First, we perform a logistic regression on the dataset against the recidivism score. We decide to separate the individuals with a low chance of recidivism on one side and those with a medium and high on the other. Let's see which variables are the most statistically significant in explaining the chances of recidivism.
 
@@ -261,17 +258,14 @@ We will now try to determine which variables are most relevant for predicting th
 RK_recidivism <- subset(RK_recidivism, select = -c(DisplayText,ScoreText,ScaleSet, ScaleSet_ID,RecSupervisionLevel,RecSupervisionLevelText,AssessmentType,Agency_Text))
 resultat <- sapply(RK_recidivism, function(x) nlevels(factor(x)))
 
-
-set.seed(123) # Pour reproduire les résultats
+set.seed(123)
 train_index <- sample(nrow(RK_recidivism), round(nrow(RK_recidivism)*0.8), replace = FALSE)
 train_data <- RK_recidivism[train_index, ]
 test_data <- RK_recidivism[-train_index, ]
 
-
 train_data$DecileScore <- ifelse(train_data$DecileScore < 5, 0, 1)
 test_data$DecileScore <- ifelse(test_data$DecileScore < 5, 0, 1)
 
-# Exécuter la régression logistique
 train_data$AgeGroup <- relevel(train_data$AgeGroup, "30-40")
 train_data$Sex_Code_Text <- relevel(factor(train_data$Sex_Code_Text), "Male")
 model <- glm(DecileScore ~ . , data = train_data, family = binomial)
@@ -309,13 +303,12 @@ Regarding marital status, being single or widowed increases the odds of recidivi
 
 Now, let's try to test our model to see its performance.
 
-```{r}
-# Faire des prédictions sur les données de test
+### Model evaluation
 
+```{r}
 predictions <- predict(model, newdata = test_data, type = "response")
 predicted_classes <- ifelse(predictions > 0.5, 1, 0)
 
-# Créer une matrice de confusion
 confusion_matrix <- table(predicted_classes, test_data$DecileScore)
 confusion_df <- as.data.frame.matrix(confusion_matrix)
 
@@ -333,7 +326,7 @@ The predictions of our model are rather bad. We note an accuracy of about 60%. T
 RK_recidivism <- subset(compas_all_data, DisplayText == "Risk of Recidivism")
 RK_recidivism <- subset(RK_recidivism, select = -c(DisplayText,ScoreText,ScaleSet, ScaleSet_ID,RecSupervisionLevel,AssessmentType,Agency_Text))
 
-set.seed(123) # Pour reproduire les résultats
+set.seed(123) 
 train_index <- sample(nrow(RK_recidivism), round(nrow(RK_recidivism)*0.8), replace = FALSE)
 train_data <- RK_recidivism[train_index, ]
 test_data <- RK_recidivism[-train_index, ]
@@ -373,27 +366,26 @@ confusion_df
 We then attempted to perform a multinomial logistic regression to have a more interesting classification of individuals.
 
 ```{r}
-set.seed(123) # Pour reproduire les résultats
+set.seed(123) # To reproduce the results
 train_index <- sample(nrow(RK_recidivism), round(nrow(RK_recidivism)*0.8), replace = FALSE)
 train_data <- RK_recidivism[train_index, ]
 test_data <- RK_recidivism[-train_index, ]
 
-
-# Convertir la variable DecileScore en facteur avec les niveaux spécifiés
-train_data$DecileScore <- factor(ifelse(train_data$DecileScore < 5, "low", ifelse(train_data$DecileScore <= 7, "medium", "high")), 
+# Convert the DecileScore variable to a factor with specified levels
+train_data$DecileScore <- factor(ifelse(train_data$DecileScore < 5, "low", ifelse(train_data$DecileScore <= 7, "medium", "high")),
                                  levels = c("low", "medium", "high"))
-test_data$DecileScore <- factor(ifelse(test_data$DecileScore < 5, "low", ifelse(test_data$DecileScore <= 7, "medium", "high")), 
+test_data$DecileScore <- factor(ifelse(test_data$DecileScore < 5, "low", ifelse(test_data$DecileScore <= 7, "medium", "high")),
                                 levels = c("low", "medium", "high"))
 
-# Exécuter la régression logistique multinomiale
+# Perform multinomial logistic regression
 model_multinom <- multinom(DecileScore ~ ., data = train_data)
 
 summary(model_multinom)
 
-# Prédire les classes pour les données de test
+# Predict classes for test data
 predicted_classes <- predict(model_multinom, newdata = test_data, type = "class")
 
-# Créer une matrice de confusion
+# Create a confusion matrix
 confusion_matrix <- confusionMatrix(predicted_classes, test_data$DecileScore)
 confusion_df <- as.data.frame.matrix(confusion_matrix$table)
 
@@ -403,12 +395,81 @@ confusion_table <- formattable(confusion_df, align = "c", list(
   `high` = color_tile("#000000", "#2A9FD6")
 ))
 confusion_matrix
+
 confusion_table
 ```
 
 Our model based on a mutinomial logistic regression presents excellent results with an accuracy of almost 90%.
 
 The results obtained with the variable RecSupervisionLevelText are so good that we can wonder if it overfit the model. In fact, this variable makes it possible to determine the level of surveillance required for each individual according to their risk of recidivism. RecSupervisionLevel is logically deduced from the risk of recidivism, so we cannot use it to predict it.
+
+### Model improvement
+
+The previous models we implemented were not completely satisfactory. We decided to develop a last model by bringing some modifications to have the best possible results.
+
+First, we wanted to study a larger number of variables to allow our model to be more accurate. To do this, we joined our initial dataset with another COMPAS dataset containing other interesting variables. We then binarized the variable we wanted to predict, namely the score corresponding to recidivism. We decided to assign the value 0 to decile scores below 5 and 1 to the others, thus separating "low risk" and "high risk" individuals. Finally, we also binarized the sensitive variable of our study, namely the ethnicity of the individuals. We assigned a value of 0 to African Americans and 1 to all other ethnicities.
+
+```{r}
+set.seed(123)
+
+compas_all_data <- read.csv("compas-scores-raw.csv")
+RK_recidivism <- subset(compas_all_data, DisplayText == "Risk of Recidivism")
+people_data <- read.csv("people-compas.csv")
+
+# Convert columns to lowercase for matching
+RK_recidivism$LastName <- tolower(RK_recidivism$LastName)
+RK_recidivism$FirstName <- tolower(RK_recidivism$FirstName)
+people_data$last <- tolower(people_data$last)
+people_data$first <- tolower(people_data$first)
+
+# Join the two datasets based on matching columns
+merged_data <- merge(RK_recidivism, people_data, by.x = c("LastName", "FirstName"), by.y = c("last", "first"))
+merged_data <- subset(merged_data, select = c(MaritalStatus, CustodyStatus, LegalStatus, age_cat, sex, priors_count, is_recid, days_b_screening_arrest, c_charge_degree, race, Language, DecileScore))
+
+# Find columns with unique values
+unique_value_columns <- sapply(merged_data, function(x) length(unique(x)) == 1)
+na_columns <- apply(merged_data, 2, function(x) all(is.na(x)))
+columns_to_remove <- unique_value_columns | na_columns
+
+# Remove columns with unique values or all NA values
+filtered_data <- merged_data[, !columns_to_remove]
+filtered_data <- subset(filtered_data, c_charge_degree != "")
+
+filtered_data$DecileScore <- ifelse(filtered_data$DecileScore < 5, 0, 1)
+filtered_data$race <- ifelse(filtered_data$race == "African-American", 0, 1)
+
+# Split the data into training and test sets
+train_index <- sample(nrow(filtered_data), round(nrow(filtered_data) * 0.8), replace = FALSE)
+train_data <- filtered_data[train_index, ]
+test_data <- filtered_data[-train_index, ]
+
+# Train the binary logistic regression model
+model_binar <- glm(DecileScore ~ . , data = train_data, family = binomial)
+
+# Make predictions on the test set
+predictions <- predict(model_binar, newdata = test_data, type = "response")
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+# Create the confusion matrix
+confusion_matrix <- table(predicted_classes, test_data$DecileScore)
+confusion_df <- as.data.frame.matrix(confusion_matrix)
+
+# Display the formatted confusion matrix
+formattable(confusion_df, list(
+  `1` = color_tile("#000000", "#2a9fd6"),
+  `0` = color_tile("#000000", "#ff5722")
+))
+
+# Display model summary
+summary(model_binar)
+
+# Calculate metrics from the confusion matrix
+confusionMatrix(confusion_matrix)
+```
+
+The predictions of our new model are quite good. We obtain an accuracy of 75%.
+
+### Bias and fairness of the models
 
 ## Distribution of actual recidivism outcomes
 
@@ -447,7 +508,7 @@ ggplot(bar_data, aes(x = race, y = proportion.Freq, fill = race)) +
   theme(legend.position = "none")
 ```
 
-The actual distribution of ethnicities in recidivism is roughly consistent with our observations of each ethnicity's risk of recidivism. The ethnicities with the highest recidivism rates are African Americans and Native Americans, although African-Americans are much more represented in the dataset. Caucasian individuals (considered white people) are better represented in the dataset. The proportion of Caucasian recidivists is 10% lower than African Americans. Keep in mind that the data in the dataset is based on actual arrests by the US police. Gender or racial bias may therefore come from the dataset itself, which may explain the wide disparity in the distribution of individuals.
+The actual distribution of ethnicities in recidivism is roughly consistent with our observations of each ethnicity's risk of recidivism. The ethnicities with the highest recidivism rates are African Americans and Native Americans, although African-Americans are much more represented in the dataset. Caucasian individuals (considered white people) are better represented in the dataset. The proportion of Caucasian recidivists is 10% lower than African Americans.
 
 ```{r}
 age_counts <- table(people_data$age_grp)
@@ -474,6 +535,8 @@ ggplot(bar_data, aes(x = age_ordered, y = proportion.Freq)) +
   theme(legend.position = "none") +
   scale_x_discrete(limits = levels(bar_data$age_ordered))
 ```
+
+Regarding age groups, the main observation we can make is that as age increases, the proportion of recidivism within these groups is lower. However, the number of individuals belonging to each group also decreases with age, making the results less significant. These observations also correspond to our first analyses of the risk of recidivism predicted by COMPAS.
 
 ```{r}
 sex_counts <- table(people_data$sex)
@@ -502,6 +565,8 @@ ggplot(bar_data, aes(x = sex, y = proportion.Freq, fill = sex)) +
   theme(legend.position = "none")
 ```
 
+Keep in mind that the data in the dataset is based on actual arrests by the US police. Gender or racial bias may therefore come from the dataset itself, which may explain the wide disparity in the distribution of individuals.
+
 ```{r}
 ggplot(recidiv_individuals, aes(x = factor(decile_score))) +
   geom_bar(aes(fill = decile_score)) +
@@ -509,3 +574,5 @@ ggplot(recidiv_individuals, aes(x = factor(decile_score))) +
   labs(title = "Decile score of recidivist individuals", x = "Decile score", y = "Number of individuals") + geom_text(aes(label=..count..),stat='count',position=position_dodge(0.9),vjust=-0.2) + theme_minimal()
   
 ```
+
+Finally, we conclude this analysis by examining the COMPAS score of individuals who actually reoffended. The least we can say is that the result is rather surprising. Indeed, we note an almost equal proportion (around 350-400 individuals) for each score. The number of recidivist individuals does not depend on their score. This makes us wonder about the reliability of the score calculated by COMPAS.
