@@ -1,3 +1,10 @@
+"""
+This script generates the file fractal_dimension.csv.
+It uses multiprocessing to speed up the process.
+For each images in the dataset, it calculates the fractal dimension of the edges of the image and saves it in fractal_dimension.csv.
+It uses cv2.Canny to detect the edges and porespy.metrics.boxcount to calculate the fractal dimension.
+"""
+
 import multiprocessing
 import pandas as pd
 from tqdm import tqdm

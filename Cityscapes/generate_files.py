@@ -1,3 +1,10 @@
+"""
+This script generates the file labels_count.csv and polygons.json.
+It uses multiprocessing to speed up the process.
+For each images in the dataset, it counts the number of labels, by city and saves it in labels_count.csv. 
+It also saves the polygons of each label, by city, in polygons.json.
+"""
+
 import json
 import multiprocessing
 import pandas as pd
@@ -68,14 +75,3 @@ if __name__ == '__main__':
     with open("output/polygons.json", "w") as outfile:
         json.dump(merged_dict, outfile)
     print('Json file saved to : output/polygons.json')
-    
-    file_list = glob.glob('data/gtFine/train/*/*color*') + glob.glob('data/gtFine/val/*/*color*')
-    res = {}
-    for file in tqdm(file_list):
-        city, fd = fractal_dimension(file)
-        if city in res:
-            res[city].append(fd)
-        else:
-            res[city] = [fd]
-    df_fractal = pd.DataFrame(res)
-    df_fractal.to_csv('output/fractal_dimension.csv', index=False)
